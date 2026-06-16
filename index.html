@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Word Puzzle | 单词组词</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="game-header">
+      <div class="brand-block">
+        <h1>Word Puzzle</h1>
+        <p>单词组词 V0.2.3 自动提示版</p>
+      </div>
+
+      <div class="header-actions">
+        <label class="difficulty-label" for="difficultySelect">难度</label>
+        <select id="difficultySelect" class="difficulty-select">
+          <option value="basic">基础 · 8字母</option>
+          <option value="intermediate" selected>进阶 · 10字母</option>
+          <option value="advanced">高阶 · 12字母</option>
+          <option value="academic">学术 · 14字母</option>
+          <option value="challenge">挑战 · 16字母</option>
+        </select>
+        <button id="nextRoundBtn" class="secondary-btn">下一局</button>
+        <button id="restartBtn" class="primary-btn">重新开始</button>
+      </div>
+    </header>
+
+    <main class="puzzle-table">
+      <section class="top-panel">
+        <div class="status-card">
+          <div class="status-item">
+            <span>当前难度</span>
+            <strong id="difficultyText">进阶</strong>
+          </div>
+          <div class="status-item">
+            <span>本局字母</span>
+            <strong id="letterCountText">10</strong>
+          </div>
+          <div class="status-item">
+            <span>本局得分</span>
+            <strong id="roundScoreText">0</strong>
+          </div>
+          <div class="status-item">
+            <span>总分</span>
+            <strong id="totalScoreText">0</strong>
+          </div>
+        </div>
+        <div id="messageText" class="message-text">点击字母牌，再点击空格完成组词。</div>
+      </section>
+
+      <section class="hint-panel">
+        <div class="section-title-row">
+          <h2>提示</h2>
+          <div class="hint-tools"><span id="hintModeText" class="hint-mode">中文释义</span></div>
+        </div>
+        <div id="hintList" class="hint-list"></div>
+      </section>
+
+      <section class="answer-panel">
+        <div class="section-title-row">
+          <h2>答案区</h2>
+          <span class="helper-text">把下方字母移入空格，所有目标词拼对即过关</span>
+        </div>
+        <div id="targetArea" class="target-area"></div>
+      </section>
+
+      <section class="letter-panel">
+        <div class="section-title-row">
+          <h2>字母池</h2>
+          <span id="poolCountText" class="helper-text">已放入 0 / 0</span>
+        </div>
+        <div id="letterPool" class="letter-pool" aria-label="字母池"></div>
+        <div class="action-panel">
+          <button id="sortBtn" class="secondary-btn">按字母排序</button>
+          <button id="moreHintBtn" class="primary-btn hint-action-btn">提示首字母</button>
+          <button id="clearBtn" class="secondary-btn">清空答案</button>
+        </div>
+      </section>
+
+      <section id="resultPanel" class="result-panel hidden"></section>
+    </main>
+  </div>
+
+  <script src="dictionary.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
