@@ -392,6 +392,52 @@ button:disabled {
   letter-spacing: 1px;
 }
 
+
+.speak-word-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid rgba(255, 209, 102, 0.85);
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: #ffd166;
+  color: #17351f;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+  line-height: 1.25;
+  box-shadow: 0 2px 0 #b89c5d;
+}
+
+.speak-word-btn:hover {
+  background: #ffe08a;
+  transform: translateY(-1px);
+}
+
+.speak-word-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 0 #b89c5d;
+}
+
+.hint-chip.answer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.hint-speak {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.result-speak {
+  font-size: 14px;
+}
+
 .result-meaning {
   margin-top: 4px;
   font-size: 13px;

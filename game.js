@@ -1,4 +1,4 @@
-/* Word Puzzle V0.2.4 触屏拖拽版
+/* Word Puzzle V0.2.5 发音定版
  * 独立组词游戏：只复用 DICTIONARY 数据，不复用单词麻将的出牌/胡牌/电脑逻辑。
  */
 
@@ -94,6 +94,8 @@ let gameState = {
   lastDropTargetEl: null,
   suppressClickTileId: null,
   suppressClickUntil: 0,
+  speechVoices: [],
+  speechReady: false,
   hintLevel: 0,
   totalScore: 0,
   roundBaseScore: 0,
@@ -468,6 +470,57 @@ function setMessage(message, isError = false) {
   els.messageText.textContent = message;
   els.messageText.style.color = isError ? "#ffb4a2" : "#fff3c4";
 }
+
+function loadSpeechVoices() {
+  if (!("speechSynthesis" in window)) return;
+  const voices = window.speechSynthesis.getVoices() || [];
+  gameState.speechVoices = voices;
+  gameState.speechReady = voices.length > 0;
+}
+
+function getEnglishVoice() {
+  if (!("speechSynthesis" in window)) return null;
+  if (!gameState.speechVoices.length) loadSpeechVoices();
+  const voices = gameState.speechVoices || [];
+  return voices.find((voice) => /^en-US/i.test(voice.lang))
+    || voices.find((voice) => /^en-GB/i.test(voice.lang))
+    || voices.find((voice) => /^en/i.test(voice.lang))
+    || null;
+}
+
+function speakWord(word) {
+  const normalized = String(word || "").trim();
+  if (!normalized) return;
+
+  if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+    setMessage("当前浏览器不支持单词发音，可以换 Chrome / Edge / Safari 测试。", true);
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(normalized.toLowerCase());
+  utterance.lang = "en-US";
+  utterance.rate = 0.86;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+
+  const voice = getEnglishVoice();
+  if (voice) utterance.voice = voice;
+
+  utterance.onerror = () => {
+    setMessage(`发音失败：${normalized}。如果是手机浏览器，先点一下页面再试。`, true);
+  };
+
+  setMessage(`正在发音：${normalized}`);
+  window.speechSynthesis.speak(utterance);
+}
+
+function createSpeakButtonHtml(word, extraClass = "") {
+  const safeWord = escapeHtml(String(word || "").toUpperCase());
+  const safeClass = escapeHtml(extraClass);
+  return `<button type="button" class="speak-word-btn ${safeClass}" data-speak-word="${safeWord}" title="朗读 ${safeWord}" aria-label="朗读 ${safeWord}">🔊 ${safeWord}</button>`;
+}
+
 
 function startRound() {
   try {
@@ -881,7 +934,7 @@ function completeRound() {
   gameState.targets.forEach((target) => gameState.usedSessionWords.add(target.word));
   gameState.totalScore += gameState.roundScore;
   gameState.selectedTileId = null;
-  setMessage(`过关！本局 +${gameState.roundScore} 分。本次已练 ${gameState.usedSessionWords.size} 个词，重新打开游戏前不会重复出现。`);
+  setMessage(`过关！本局 +${gameState.roundScore} 分。点击单词旁的 🔊 可以听发音。本次已练 ${gameState.usedSessionWords.size} 个词。`);
   render();
   showResultPanel();
 }
@@ -903,7 +956,7 @@ function showResultPanel() {
     <div class="result-words">
       ${gameState.targets.map((target) => `
         <div class="result-word-card">
-          <div class="result-word">${escapeHtml(target.word)}</div>
+          <div class="result-word">${createSpeakButtonHtml(target.word, "result-speak")}</div>
           <div class="result-meaning">${escapeHtml(LEVEL_NAME[target.level])} · ${escapeHtml(target.meaning)}</div>
           <div class="result-meaning">${escapeHtml(target.definition)}</div>
         </div>
@@ -1073,7 +1126,7 @@ function renderHints() {
     const solvedText = target.solved ? ` · 已完成：${target.word}` : ` · ${target.word.length} 个字母`;
     const hintLabel = gameState.hintLevel === 1 ? "已自动填入首字母" : "已自动填入首尾字母";
     const extra = target.solved
-      ? `<span class="hint-chip">答案：${escapeHtml(target.word)}</span>`
+      ? `<span class="hint-chip answer-chip">答案：${createSpeakButtonHtml(target.word, "hint-speak")}</span>`
       : gameState.hintLevel > 0
         ? `<span class="hint-chip">${hintLabel} <span class="word-pattern">${escapeHtml(buildHintPattern(target.word))}</span></span>`
         : "";
@@ -1300,6 +1353,14 @@ function bindEvents() {
   els.moreHintBtn.addEventListener("click", increaseHintLevel);
 
   document.addEventListener("click", (event) => {
+    const speakButton = event.target.closest("[data-speak-word]");
+    if (speakButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      speakWord(speakButton.dataset.speakWord);
+      return;
+    }
+
     if (!event.target.closest(".tile") && !event.target.closest(".slot")) {
       if (gameState.selectedTileId) {
         gameState.selectedTileId = null;
@@ -1312,6 +1373,10 @@ function bindEvents() {
 function initGame() {
   initDomRefs();
   gameState.wordList = buildWordList();
+  loadSpeechVoices();
+  if ("speechSynthesis" in window) {
+    window.speechSynthesis.onvoiceschanged = loadSpeechVoices;
+  }
   bindEvents();
 
   if (!gameState.wordList.length) {
@@ -1323,4 +1388,5 @@ function initGame() {
 }
 
 window.startRound = startRound;
+window.speakWord = speakWord;
 window.addEventListener("DOMContentLoaded", initGame);
