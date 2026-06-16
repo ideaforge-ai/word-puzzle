@@ -1,4 +1,4 @@
-/* Word Puzzle V0.2.3 自动提示版
+/* Word Puzzle V0.2.4 触屏拖拽版
  * 独立组词游戏：只复用 DICTIONARY 数据，不复用单词麻将的出牌/胡牌/电脑逻辑。
  */
 
@@ -90,6 +90,10 @@ let gameState = {
   tiles: [],
   selectedTileId: null,
   draggedTileId: null,
+  pointerDrag: null,
+  lastDropTargetEl: null,
+  suppressClickTileId: null,
+  suppressClickUntil: 0,
   hintLevel: 0,
   totalScore: 0,
   roundBaseScore: 0,
@@ -467,6 +471,7 @@ function setMessage(message, isError = false) {
 
 function startRound() {
   try {
+    cleanupPointerDrag();
     const difficulty = els.difficultySelect.value;
     gameState.difficulty = difficulty;
     gameState.roundNo += 1;
@@ -474,6 +479,10 @@ function startRound() {
     gameState.tiles = createTilesFromTargets(gameState.targets);
     gameState.selectedTileId = null;
     gameState.draggedTileId = null;
+    gameState.pointerDrag = null;
+    gameState.lastDropTargetEl = null;
+    gameState.suppressClickTileId = null;
+    gameState.suppressClickUntil = 0;
     gameState.hintLevel = 0;
     gameState.hintPenalty = 0;
     gameState.roundBaseScore = calculateRoundScore(gameState.targets);
@@ -512,6 +521,176 @@ function isHintLockedTile(tile) {
   if (!tile || tile.location !== "slot" || !tile.targetId) return false;
   const target = getTarget(tile.targetId);
   return isHintLockedSlot(target, tile.slotIndex);
+}
+
+function canMoveTile(tile) {
+  if (!tile || gameState.roundCompleted) return false;
+  if (isHintLockedTile(tile)) return false;
+  if (tile.location === "slot" && tile.targetId) {
+    const target = getTarget(tile.targetId);
+    if (target && target.solved) return false;
+  }
+  return true;
+}
+
+function cleanupPointerDrag() {
+  if (gameState.pointerDrag && gameState.pointerDrag.ghost) {
+    gameState.pointerDrag.ghost.remove();
+  }
+  if (gameState.pointerDrag && gameState.pointerDrag.sourceEl) {
+    gameState.pointerDrag.sourceEl.classList.remove("dragging", "touch-source");
+  }
+  if (gameState.lastDropTargetEl) {
+    gameState.lastDropTargetEl.classList.remove("drag-over");
+  }
+  document.body.classList.remove("touch-dragging");
+  gameState.pointerDrag = null;
+  gameState.lastDropTargetEl = null;
+  gameState.draggedTileId = null;
+}
+
+function createPointerGhost(sourceEl, x, y) {
+  const rect = sourceEl.getBoundingClientRect();
+  const ghost = sourceEl.cloneNode(true);
+  ghost.classList.remove("selected");
+  ghost.classList.add("touch-drag-ghost");
+  ghost.style.width = `${rect.width}px`;
+  ghost.style.height = `${rect.height}px`;
+  document.body.appendChild(ghost);
+  movePointerGhost(ghost, x, y);
+  return ghost;
+}
+
+function movePointerGhost(ghost, x, y) {
+  if (!ghost) return;
+  ghost.style.left = `${x}px`;
+  ghost.style.top = `${y}px`;
+}
+
+function getPointerDropTarget(x, y) {
+  const element = document.elementFromPoint(x, y);
+  if (!element) return null;
+  const slot = element.closest(".slot");
+  if (slot) return slot;
+  const pool = element.closest(".letter-pool");
+  if (pool) return pool;
+  return null;
+}
+
+function setPointerDropHighlight(targetEl) {
+  if (gameState.lastDropTargetEl && gameState.lastDropTargetEl !== targetEl) {
+    gameState.lastDropTargetEl.classList.remove("drag-over");
+  }
+  gameState.lastDropTargetEl = targetEl || null;
+  if (gameState.lastDropTargetEl) {
+    gameState.lastDropTargetEl.classList.add("drag-over");
+  }
+}
+
+function handleTilePointerDown(event, tileId) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+
+  const tile = getTile(tileId);
+  if (!canMoveTile(tile)) return;
+
+  gameState.pointerDrag = {
+    tileId,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    lastX: event.clientX,
+    lastY: event.clientY,
+    dragging: false,
+    ghost: null,
+    sourceEl: event.currentTarget
+  };
+
+  try {
+    event.currentTarget.setPointerCapture(event.pointerId);
+  } catch (error) {
+    // 某些旧浏览器或特殊 WebView 可能不支持 setPointerCapture，不影响点击模式。
+  }
+}
+
+function handleTilePointerMove(event) {
+  const drag = gameState.pointerDrag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  drag.lastX = event.clientX;
+  drag.lastY = event.clientY;
+
+  const dx = event.clientX - drag.startX;
+  const dy = event.clientY - drag.startY;
+  const distance = Math.hypot(dx, dy);
+
+  if (!drag.dragging && distance < 7) return;
+
+  if (!drag.dragging) {
+    const tile = getTile(drag.tileId);
+    if (!canMoveTile(tile)) {
+      cleanupPointerDrag();
+      return;
+    }
+    drag.dragging = true;
+    drag.ghost = createPointerGhost(drag.sourceEl, event.clientX, event.clientY);
+    drag.sourceEl.classList.add("dragging", "touch-source");
+    gameState.draggedTileId = drag.tileId;
+    gameState.selectedTileId = null;
+    document.body.classList.add("touch-dragging");
+  }
+
+  event.preventDefault();
+  movePointerGhost(drag.ghost, event.clientX, event.clientY);
+  setPointerDropHighlight(getPointerDropTarget(event.clientX, event.clientY));
+}
+
+function handleTilePointerUp(event) {
+  const drag = gameState.pointerDrag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+
+  const wasDragging = drag.dragging;
+  const tileId = drag.tileId;
+  const dropTarget = wasDragging ? getPointerDropTarget(event.clientX, event.clientY) : null;
+
+  try {
+    drag.sourceEl.releasePointerCapture(event.pointerId);
+  } catch (error) {
+    // ignore
+  }
+
+  cleanupPointerDrag();
+
+  if (!wasDragging) return;
+
+  event.preventDefault();
+  gameState.suppressClickTileId = tileId;
+  gameState.suppressClickUntil = Date.now() + 350;
+
+  if (!dropTarget) {
+    setMessage("已取消拖拽，字母保持原位。拖到空格或字母池即可移动。");
+    render();
+    return;
+  }
+
+  if (dropTarget.classList.contains("slot")) {
+    const targetId = dropTarget.dataset.targetId;
+    const slotIndex = Number(dropTarget.dataset.slotIndex);
+    if (targetId && Number.isInteger(slotIndex)) {
+      placeTileToSlot(tileId, targetId, slotIndex);
+    }
+    return;
+  }
+
+  if (dropTarget.classList.contains("letter-pool")) {
+    moveTileToPool(tileId);
+    if (!gameState.roundCompleted) setMessage("已把字母放回字母池。");
+  }
+}
+
+function handleTilePointerCancel(event) {
+  const drag = gameState.pointerDrag;
+  if (!drag || drag.pointerId !== event.pointerId) return;
+  cleanupPointerDrag();
 }
 
 function isTileCorrectlyPlaced(tile) {
@@ -973,16 +1152,24 @@ function createTileElement(tile) {
   const el = document.createElement("div");
   el.className = `tile ${gameState.selectedTileId === tile.id ? "selected" : ""} ${locked ? "locked" : ""} ${hintLocked ? "hinted" : ""}`;
   el.textContent = tile.letter;
-  el.draggable = !gameState.roundCompleted && !locked;
+  // 使用 Pointer Events 统一鼠标、手写笔和触屏拖拽。
+  // HTML5 drag/drop 在 iOS 和部分安卓 WebView 上不稳定，所以这里禁用原生 draggable。
+  el.draggable = false;
   el.dataset.tileId = tile.id;
   el.setAttribute("role", "button");
   el.setAttribute("aria-label", `字母 ${tile.letter}`);
   el.addEventListener("click", (event) => {
     event.stopPropagation();
+    if (gameState.suppressClickTileId === tile.id && Date.now() < gameState.suppressClickUntil) {
+      event.preventDefault();
+      return;
+    }
     selectTile(tile.id);
   });
-  el.addEventListener("dragstart", (event) => handleDragStart(event, tile.id));
-  el.addEventListener("dragend", handleDragEnd);
+  el.addEventListener("pointerdown", (event) => handleTilePointerDown(event, tile.id));
+  el.addEventListener("pointermove", handleTilePointerMove);
+  el.addEventListener("pointerup", handleTilePointerUp);
+  el.addEventListener("pointercancel", handleTilePointerCancel);
   return el;
 }
 
