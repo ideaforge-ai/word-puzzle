@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Word Puzzle | 单词组词</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    /*
+      字母牌仅做显示层小写化：
+      不修改 JS 内部字母值，避免影响排序、选择、提交和判定逻辑。
+    */
+    #letterPool,
+    #targetArea {
+      text-transform: lowercase;
+    }
+  </style>
 </head>
 <body>
   <div class="app">
